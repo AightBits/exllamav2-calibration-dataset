@@ -20,6 +20,7 @@ parser.add_argument("--seed", type=int, default=42, help="Random seed for shuffl
 parser.add_argument("--dataset", type=str, default="EleutherAI/the_pile_deduplicated", help="Hugging Face dataset to use")
 parser.add_argument("--dry_run", action="store_true", help="Preview configuration without running")
 parser.add_argument("--no_confirm", action="store_true", help="Skip confirmation prompt")
+parser.add_argument("--preview", action="store_true", help="Decode and print sample tokens from first row")
 args = parser.parse_args()
 
 # --- Resolve paths and config ---
@@ -126,11 +127,12 @@ random.seed(args.seed)
 random.shuffle(rows)
 
 # --- Preview sample ---
-print("[i] Sample decoded tokens (first row):")
-if tokenizer_type == "hf":
-    print(tokenizer.decode(rows[0][:256]))
-else:
-    print("[Skipped: SentencePiece decode not available]")
+if args.preview:
+    print("[i] Sample decoded tokens (first row):")
+    if tokenizer_type == "hf":
+        print(tokenizer.decode(rows[0][:256]))
+    else:
+        print("[Skipped: SentencePiece decode not available]")
 
 # --- Save to Parquet ---
 df = pd.DataFrame({"tokens": rows})
