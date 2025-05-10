@@ -17,7 +17,7 @@ This script generates a `.parquet` file containing full-length tokenized rows fo
 ## Usage
 
 ```bash
-python build_calib_dataset.py /path/to/model \
+python exllamav2-calibration-dataset /path/to/model \
   --num_tokens 13107200 \
   --output mistral_calib.parquet
 ```
@@ -36,7 +36,7 @@ python build_calib_dataset.py /path/to/model \
 ## Example
 
 ```bash
-python build_calib_dataset.py ./mistral-model \
+python exllamav2-calibration-dataset ./mistral-model \
   --num_tokens 13107200 \
   --output mistral_calib.parquet \
   --no_confirm \
@@ -48,7 +48,15 @@ python build_calib_dataset.py ./mistral-model \
 A `.parquet` file with 100 full rows of token sequences, suitable for use with:
 
 ```bash
-convert.py -c mistral_calib.parquet
+python convert.py \
+  -i /models/Mistral-Small-3.1-24B-Instruct-2503 \
+  -o /workspace/tmp/mistral-24B-8bpw \
+  -cf /models/Mistral-Small-3.1-24B-Instruct-2503-8bpw-exl2 \
+  -c Mistral-Small-3.1-24B-Instruct-2503.parquet \
+  -b 8.0 \
+  -hb 8 \
+  -l 131072 \
+  -r 100
 ```
 
 If the required number of full rows cannot be collected, the script will exit with an error and suggest increasing `--num_tokens` or choosing a dataset with longer samples.
