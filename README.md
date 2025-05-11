@@ -26,6 +26,7 @@ python exllamav2-calibration-dataset /path/to/model \
 
 - `--output`: Path to output `.parquet` file
 - `--num_tokens`: Total tokens to collect (default = `seq_len × 100`)
+- `--num_rows`: Number of full token rows to collect (overrides `--num_tokens`)
 - `--seq_len`: Override the model’s configured context length
 - `--dataset`: Hugging Face dataset to stream from
 - `--seed`: Random seed for row shuffling (default: 42)
