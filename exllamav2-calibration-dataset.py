@@ -1,11 +1,10 @@
 import os
 import sys
-import gc
 import random
 import argparse
 import pandas as pd
 from datasets import load_dataset
-from transformers import AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer
 import sentencepiece as spm
 import json
 import tqdm
@@ -15,6 +14,7 @@ parser = argparse.ArgumentParser(description="Build calibration dataset for ExLl
 parser.add_argument("model_path", type=str, help="Path to model directory containing config.json")
 parser.add_argument("--output", type=str, default=None, help="Output .parquet file path")
 parser.add_argument("--num_tokens", type=int, default=None, help="Total number of tokens to collect")
+parser.add_argument("--num_rows", type=int, default=None, help="Number of rows to collect (overrides --num_tokens)")
 parser.add_argument("--seq_len", type=int, default=None, help="Override sequence length (tokens per row)")
 parser.add_argument("--seed", type=int, default=42, help="Random seed for shuffling rows")
 parser.add_argument("--dataset", type=str, default="EleutherAI/the_pile_deduplicated", help="Hugging Face dataset to use")
@@ -24,7 +24,7 @@ parser.add_argument("--preview", action="store_true", help="Decode and print sam
 args = parser.parse_args()
 
 # --- Resolve paths and config ---
-model_path = args.model_path.rstrip("/")
+model_path = args.model_path if args.model_path == "/" else args.model_path.rstrip("/")
 model_name = os.path.basename(model_path)
 output_parquet = args.output or f"{model_name}.parquet"
 
@@ -36,19 +36,20 @@ if not os.path.exists(config_path):
 with open(config_path, "r") as f:
     config_data = json.load(f)
 
-try:
-    default_seq_len = config_data["text_config"]["max_position_embeddings"]
-except KeyError:
+default_seq_len = config_data.get("text_config", {}).get("max_position_embeddings")
+if default_seq_len is None:
     raise ValueError("[!] Could not find 'text_config.max_position_embeddings' in config.json")
 
 seq_len = args.seq_len or default_seq_len
+if seq_len <= 0:
+    raise ValueError("[!] Sequence length must be positive")
 
 # --- Load tokenizer ---
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
     tokenizer_type = "hf"
     print(f"[+] Loaded Hugging Face tokenizer from {model_path}")
-except:
+except Exception:
     if os.path.isdir(model_path) and "tokenizer.model" in os.listdir(model_path):
         tokenizer = spm.SentencePieceProcessor(model_file=os.path.join(model_path, "tokenizer.model"))
         tokenizer_type = "sp"
@@ -56,21 +57,21 @@ except:
     else:
         raise ValueError("Could not load tokenizer from model path")
 
-# --- Set num_tokens if not explicitly provided ---
-if args.num_tokens is None:
-    default_rows = 100
-    num_tokens = seq_len * default_rows
+# --- Set num_tokens and num_rows ---
+if args.num_rows is not None:
+    num_rows = args.num_rows
+    num_tokens = num_rows * seq_len
 else:
-    num_tokens = args.num_tokens
-
-num_rows = num_tokens // seq_len
+    num_tokens = args.num_tokens or seq_len * 100
+    num_rows = num_tokens // seq_len
+actual_tokens = num_rows * seq_len
 
 # --- Summary ---
 print("=" * 60)
 print(f"Model: {model_name}")
 print(f"Tokenizer type: {tokenizer_type}")
 print(f"Sequence length (used per row): {seq_len}")
-print(f"Target total tokens: {num_tokens:,}")
+print(f"Target total tokens (will collect): {actual_tokens:,}")
 print(f"Target rows to collect: {num_rows}")
 print(f"Dataset: {args.dataset}")
 print(f"Output file: {output_parquet}")
@@ -136,7 +137,7 @@ if args.preview:
 
 # --- Save to Parquet ---
 df = pd.DataFrame({"tokens": rows})
-df.to_parquet(output_parquet, engine="fastparquet", index=False)
+df.to_parquet(output_parquet, index=False)
 
 # --- Done ---
 print("[✓] Done.")
